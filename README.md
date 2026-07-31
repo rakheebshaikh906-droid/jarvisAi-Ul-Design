@@ -75,16 +75,6 @@ npm run dev
 - Application launcher
 - Smart automation features
 
-## Screenshots
-
-Add screenshots of the application here.
-
-```
-screenshots/
-├── dashboard.png
-├── chat-interface.png
-└── voice-ui.png
-```
 
 ## Author
 
