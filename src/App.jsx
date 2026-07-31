@@ -1,0 +1,332 @@
+import { useState, useRef, useEffect, useCallback } from "react";
+import { askGemini } from "./gemini";
+import { getWeather } from "./weather";
+
+import ParticlesBackground from "./components/ParticlesBackground";
+import Header from "./components/Header";
+import Sidebar from "./components/Sidebar";
+import ChatPanel from "./components/ChatPanel";
+import InputBar from "./components/InputBar";
+import SystemMonitor from "./components/SystemMonitor";
+import QuickCommands from "./components/QuickCommands";
+import AICore from "./components/AICore";
+
+function App() {
+  const [command, setCommand] = useState("");
+  const [input, setInput] = useState("");
+  const [messages, setMessages] = useState([
+    {
+      id: "welcome",
+      sender: "jarvis",
+      text: "Hello Rakheeb! I am Jarvis. How can I help you today?",
+    },
+  ]);
+  const chatRef = useRef(null);
+  const [loading, setLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [activeNav, setActiveNav] = useState("home");
+  const [clock, setClock] = useState(
+    new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false })
+  );
+
+  // live clock, matches the screenshot's "local time" stat
+  useEffect(() => {
+    const t = setInterval(() => {
+      setClock(new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", hour12: false }));
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const speak = (text) => {
+    const speech = new SpeechSynthesisUtterance(text);
+    speech.lang = "en-US";
+    window.speechSynthesis.speak(speech);
+  };
+
+  const addJarvisMessage = (text) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID ? crypto.randomUUID() : Date.now() + Math.random(),
+        sender: "jarvis",
+        text,
+      },
+    ]);
+  };
+
+  const addWeatherMessage = (weatherData, city) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID ? crypto.randomUUID() : Date.now() + Math.random(),
+        sender: "jarvis",
+        type: "weather",
+        weatherData,
+        city,
+      },
+    ]);
+  };
+
+  const downloadChat = () => {
+    const chatText = messages
+      .map((msg) => `${msg.sender === "user" ? "user" : "hello jarvis"}: ${msg.text ?? "[weather card]"}`)
+      .join("\n\n");
+
+    const blob = new Blob([chatText], { type: "text/plain" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "chat.txt";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleCommand = async (text) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: crypto.randomUUID ? crypto.randomUUID() : Date.now() + Math.random(),
+        sender: "user",
+        text: text,
+      },
+    ]);
+    const cmd = text.toLowerCase();
+
+    setCommand(cmd);
+
+    if (cmd.includes("youtube")) {
+      speak("Open YouTube");
+      window.open("https://www.youtube.com", "_blank");
+    } else if (cmd.includes("google")) {
+      speak("Open Google");
+      window.open("https://www.google.com", "_blank");
+    } else if (cmd.includes("github")) {
+      speak("Open GitHub");
+      window.open("https://github.com", "_blank");
+    } else if (cmd.includes("leetcode")) {
+      speak("Open LeetCode");
+      window.open("https://leetcode.com/u/rakheebshaikh906/", "_blank");
+    } else if (cmd.includes("linkdin")) {
+      speak("Open linkdin");
+      window.open("https://www.linkedin.com/in/rakheeb-shaikh-54830b380", "_blank");
+    } else if (cmd.includes("calculator")) {
+      addJarvisMessage("Opening Calculator...");
+      speak("Opening Calculator");
+      window.electronAPI?.openApp("calculator");
+    } else if (cmd.includes("notepad")) {
+      addJarvisMessage("Opening Notepad...");
+      speak("Opening Notepad");
+      window.electronAPI?.openApp("notepad");
+    } else if (cmd.includes("vscode")) {
+      addJarvisMessage("Opening VS Code...");
+      speak("Opening VS Code");
+      window.electronAPI?.openApp("vscode");
+    } else if (cmd.includes("chrome")) {
+      addJarvisMessage("Opening Chrome...");
+      speak("Opening Chrome");
+      window.electronAPI?.openApp("chrome");
+    } else if (cmd.includes("explorer")) {
+      addJarvisMessage("Opening File Explorer...");
+      speak("Opening File Explorer");
+      window.electronAPI?.openApp("explorer");
+    } else if (cmd.includes("spotify")) {
+      addJarvisMessage("Opening Spotify...");
+      speak("Opening Spotify");
+      window.electronAPI?.openApp("spotify");
+    } else if (cmd.includes("hello jarvis")) {
+      const hour = new Date().getHours();
+      let greeting = "Hello Rakheeb";
+      if (hour < 12) greeting = "Good Morning Rakheeb";
+      else if (hour < 18) greeting = "Good Afternoon Rakheeb";
+      else greeting = "Good Evening Rakheeb";
+
+      addJarvisMessage(`${greeting}! How can I help you today?`);
+      speak(`${greeting}! How can I help you today?`);
+    } else if (cmd.includes("good morning")) {
+      addJarvisMessage("Good Morning Rakheeb! Have a productive coding day.");
+      speak("Good Morning Rakheeb! Have a productive coding day.");
+    } else if (cmd.includes("show time")) {
+      addJarvisMessage(new Date().toLocaleTimeString());
+      speak(`The current time is ${new Date().toLocaleTimeString()}`);
+    } else if (cmd.includes("show date")) {
+      addJarvisMessage(new Date().toDateString());
+      speak(`The current date is ${new Date().toDateString()}`);
+    } else if (cmd.includes("now tell me about virat kohli")) {
+      const msg =
+        "Virat Kohli is an Indian cricketer and former captain of the Indian national team. He is one of the most successful batsmen in the history of cricket.";
+      addJarvisMessage(msg);
+      speak(msg);
+    } else if (cmd.includes("what is the weather today")) {
+      const msg = "The weather is sunny with a high of 35°C and a low of 25°C.";
+      addJarvisMessage(msg);
+      speak(msg);
+    } else if (cmd.includes("can you tell about myself")) {
+      const msg =
+        "your name is shaikh abdul rakheeb you are a passionate software developer with expertise in software development and a keen interest in AI technologies.";
+      addJarvisMessage(msg);
+      speak(msg);
+    } else if (cmd.startsWith("my name is")) {
+      const name = text.replace(/my name is/i, "").trim();
+      localStorage.setItem("userName", name);
+      const msg = `Okay, I will remember that your name is ${name}`;
+      addJarvisMessage(msg);
+      speak(msg);
+    } else if (cmd.includes("what is my name")) {
+      const savedName = localStorage.getItem("userName");
+      if (savedName) {
+        addJarvisMessage(`Your name is ${savedName}`);
+        speak(`Your name is ${savedName}`);
+      } else {
+        addJarvisMessage("I don't know your name yet.");
+        speak("I don't know your name yet.");
+      }
+    } else if (cmd.startsWith("remember that")) {
+      const memory = text.replace(/remember that/i, "").trim();
+      let memories = JSON.parse(localStorage.getItem("memories")) || {};
+      const parts = memory.split(" is ");
+
+      if (parts.length >= 2) {
+        const key = parts[0].trim().toLowerCase();
+        const value = parts.slice(1).join(" is ").trim();
+        memories[key] = value;
+        localStorage.setItem("memories", JSON.stringify(memories));
+
+        addJarvisMessage(`Okay, I'll remember that ${key} is ${value}`);
+        speak(`Okay, I'll remember that ${key} is ${value}`);
+      }
+    } else if (cmd.startsWith("what is my")) {
+      const key = cmd.replace("what is my", "").replace("?", "").trim();
+      const memories = JSON.parse(localStorage.getItem("memories")) || {};
+
+      if (memories[key]) {
+        addJarvisMessage(`Your ${key} is ${memories[key]}`);
+        speak(`Your ${key} is ${memories[key]}`);
+      } else {
+        addJarvisMessage(`I don't know your ${key} yet.`);
+        speak(`I don't know your ${key} yet.`);
+      }
+    } else if (cmd.includes("weather in")) {
+      try {
+        const city = text.toLowerCase().replace("weather in", "").trim();
+        const weatherData = await getWeather(city);
+
+        addWeatherMessage(weatherData, city);
+        speak(
+          `${city} temperature is ${weatherData.current.temp_c}°C with ${weatherData.current.condition.text}`
+        );
+      } catch (error) {
+        console.error("Weather Error:", error);
+        addJarvisMessage("Unable to fetch weather data.");
+      }
+    } else {
+      try {
+        setLoading(true);
+        const answer = await askGemini(text);
+        addJarvisMessage(answer);
+        speak(answer);
+        setLoading(false);
+      } catch (error) {
+        setLoading(false);
+        console.log(error);
+      }
+    }
+  };
+
+  const startListening = () => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      alert("Speech Recognition is not supported in this browser.");
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      console.log("Listening...");
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+      console.log("Recognition Ended");
+    };
+
+    recognition.onresult = (event) => {
+      const text = event.results[0][0].transcript.toLowerCase();
+      console.log("Recognized:", text);
+      handleCommand(text);
+    };
+
+    recognition.onerror = (event) => {
+      setIsListening(false);
+      console.log("Error:", event.error);
+      alert(`Error: ${event.error}`);
+    };
+
+    recognition.start();
+  };
+
+  useEffect(() => {
+    chatRef.current?.scrollTo({
+      top: chatRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [messages, loading]);
+
+  const handleSend = useCallback(() => {
+    if (!input.trim()) return;
+    handleCommand(input);
+    setInput("");
+  }, [input]);
+
+  const handleQuickCommand = (text) => {
+    if (text.endsWith("[text]") || text.trim() === "remember that") {
+      setInput("remember that ");
+      return;
+    }
+    handleCommand(text);
+  };
+
+  return (
+    <div className="min-h-screen relative p-4 md:p-5" style={{ background: "var(--jarvis-bg)" }}>
+      <ParticlesBackground />
+
+      <div className="relative z-10 max-w-[1400px] mx-auto">
+        <Header messageCount={messages.length} time={clock} />
+
+        <div className="flex flex-col lg:flex-row gap-5">
+          <Sidebar
+            activeId={activeNav}
+            onSelect={setActiveNav}
+            onCommand={handleCommand}
+            lastCommand={command || "awaiting input"}
+          />
+
+          <div className="flex-1 flex flex-col min-w-0">
+            <ChatPanel messages={messages} loading={loading} chatRef={chatRef} />
+            <InputBar
+              input={input}
+              setInput={setInput}
+              onSend={handleSend}
+              onMic={startListening}
+              isListening={isListening}
+              onDownload={downloadChat}
+            />
+          </div>
+
+          <div className="flex flex-col gap-5 w-full lg:w-72 shrink-0">
+            <SystemMonitor />
+            <QuickCommands onRun={handleQuickCommand} />
+            <AICore />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default App;
